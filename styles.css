@@ -1,0 +1,155 @@
+
+body {
+  font-family: Arial, sans-serif;
+  background-color: #f5f5f5;
+  margin: 0;
+  padding: 0;
+  color: #333;
+}
+
+header, nav, footer {
+  background-color: #333;
+  color: white;
+  padding: 1em;
+  text-align: center;
+}
+
+nav a {
+  color: white;
+  margin: 0 1em;
+  text-decoration: none;
+}
+
+main {
+  max-width: 960px;
+  margin: auto;
+  padding: 2em;
+  background: white;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+
+img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 10px;
+  margin-bottom: 1em;
+}
+
+figure {
+  text-align: center;
+}
+
+figcaption {
+  font-style: italic;
+  color: gray;
+}
+
+
+#timeline-container {
+  width: 100%;
+  margin: 40px 0;
+  padding: 10px;
+}
+
+#history-scale {
+  margin-bottom: 20px;
+}
+
+.timeline-list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.timeline-item {
+  background-color: #eee;
+  padding: 10px 15px;
+  border: 1px solid #ccc;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.timeline-item:hover,
+.timeline-item.highlight {
+  background-color: #f39c12;
+  color: white;
+}
+
+
+#history-content {
+  text-align: center;
+  max-width: 800px;
+  margin: 0 auto;
+  background-color: #fafafa;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+
+.airfare-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 30px 0;
+  background-color: #fff;
+  box-shadow: 0 0 8px rgba(0,0,0,0.1);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.airfare-table th,
+.airfare-table td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+}
+
+.airfare-table th {
+  background-color: #333;
+  color: white;
+}
+
+.airfare-table tr:hover {
+  background-color: #f2f2f2;
+}
+
+
+#comments {
+  max-width: 600px;
+  margin: 40px auto;
+  padding: 20px;
+  background: #f8f8f8;
+  border-radius: 12px;
+  box-shadow: 0 0 8px rgba(0,0,0,0.1);
+}
+
+#comment-form input,
+#comment-form textarea {
+  width: 100%;
+  padding: 8px;
+  margin-top: 5px;
+  box-sizing: border-box;
+}
+
+#submitted-comments {
+  margin-top: 20px;
+}
+
+
+h1 {
+  font-size: 32px;
+  text-align: center;
+}
+
+h2 {
+  font-size: 20px;
+  text-align: center;
+}
+
+
+

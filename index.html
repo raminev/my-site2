@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- This webpage serves as the homepage of the site, offering a brief introduction to Saint Petersburg and inviting visitors to engage through a comment section. -->
+    <meta charset="UTF-8">
+    <title>Saint Petersburg</title>
+    <link rel="stylesheet" href="styles.css">
+	<script src="airfare-data.js"></script>
+
+</head>
+
+<body>
+    <header>
+        <h1>Welcome to Saint Petersburg</h1>
+        <nav>
+            <a href="index.html">Home</a>
+            <a href="info1.html">History</a>
+            <a href="info2.html">Landmarks</a>
+            <a href="about.html">About</a>
+        </nav>
+    </header>
+    <main>
+        <p>Saint Petersburg is a beautiful and historic city in Russia, located on the Neva River near the Baltic Sea.</p>
+		<figure>
+			<img src="dvortsovaya.jpg" alt="Palace Square">
+			<figcaption>Palace Square</figcaption>
+		</figure>
+		
+		<figure>
+			<img src="spmi.jpg" alt="SPMI building in Saint Petersburg">
+			<figcaption>My Alma Mater</figcaption>
+		</figure>
+
+
+    </main>
+<section id="airfare-section">
+  <h2>Estimated Airfare to Saint Petersburg</h2>
+  <div id="airfare-table-container">
+    
+  </div>
+</section>
+
+<section id="comments">
+  <h2>Share Your Thoughts</h2>
+  <form id="comment-form">
+    <label for="name">Your Name:</label><br>
+    <input type="text" id="name" name="name" required><br><br>
+
+    <label for="comment">Your Comment:</label><br>
+    <textarea id="comment" name="comment" rows="5" required></textarea><br><br>
+
+    <button type="submit">Submit</button>
+  </form>
+
+  <div id="submitted-comments"></div>
+</section>
+
+<script>
+  document.getElementById("comment-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+
+    const name = document.getElementById("name").value.trim();
+    const comment = document.getElementById("comment").value.trim();
+
+    if (name && comment) {
+      const commentBox = document.createElement("div");
+      commentBox.style.marginTop = "20px";
+      commentBox.innerHTML = `<strong>${name}:</strong><p>${comment}</p>`;
+      document.getElementById("submitted-comments").appendChild(commentBox);
+
+      this.reset();
+    }
+  });
+</script>
+    <footer>
+        <p>&copy; 2025 Rustam Aminev</p>
+    </footer>
+</body>
+
+</html>
