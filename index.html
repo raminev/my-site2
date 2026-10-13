@@ -225,6 +225,7 @@
   let sequenceRunning = false;
   let sequenceTimeouts = [];
   let msgCount = 0;
+  let currentAudio = null;
 
   // ===== STATUS BAR =====
   function setStatus(text, active) {
@@ -234,64 +235,107 @@
     else dot.classList.remove('active');
   }
 
-  // ===== SPEECH SYNTHESIS (replaces Google Translate TTS) =====
+  // ===== GOOGLE TRANSLATE TTS =====
+  // Split text into chunks at sentence boundaries (Google TTS limit ~200 chars)
+  function splitText(text, maxLen) {
+    maxLen = maxLen || 190;
+    var chunks = [];
+    var sentences = text.match(/[^.!?]+[.!?]+[\s]*/g) || [text];
+    var current = '';
+
+    for (var i = 0; i < sentences.length; i++) {
+      var s = sentences[i].trim();
+      if ((current + ' ' + s).trim().length <= maxLen) {
+        current = (current + ' ' + s).trim();
+      } else {
+        if (current) chunks.push(current);
+        if (s.length > maxLen) {
+          var parts = s.split(/,\s*/);
+          var sub = '';
+          for (var j = 0; j < parts.length; j++) {
+            if ((sub + ', ' + parts[j]).trim().length <= maxLen) {
+              sub = (sub ? sub + ', ' : '') + parts[j];
+            } else {
+              if (sub) chunks.push(sub);
+              sub = parts[j];
+            }
+          }
+          if (sub) current = sub;
+          else current = '';
+        } else {
+          current = s;
+        }
+      }
+    }
+    if (current) chunks.push(current);
+    return chunks.length > 0 ? chunks : [text];
+  }
+
+  function getTTSUrl(text, lang) {
+    return 'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=' +
+      encodeURIComponent(lang) + '&q=' + encodeURIComponent(text);
+  }
+
   function speak(text, lang) {
-    return new Promise((resolve, reject) => {
+    return new Promise(function(resolve) {
       if (!text || !text.trim()) { resolve(); return; }
-      window.speechSynthesis.cancel();
 
-      const utterance = new SpeechSynthesisUtterance(text.trim());
-      utterance.lang = lang || 'en-US';
-      utterance.rate = 0.9;
-      utterance.pitch = 1;
-      utterance.volume = 1;
+      var langCode = (lang === 'es-ES' || lang === 'es') ? 'es' : 'en';
+      var chunks = splitText(text.trim(), 190);
+      var index = 0;
 
-      // Try to find a matching voice
-      const voices = window.speechSynthesis.getVoices();
-      const match = voices.find(v => v.lang.startsWith(lang.split('-')[0]));
-      if (match) utterance.voice = match;
+      function playNext() {
+        if (index >= chunks.length) { resolve(); return; }
+        if (!loopRunning && !sequenceRunning) { resolve(); return; }
 
-      utterance.onend = () => resolve();
-      utterance.onerror = (e) => {
-        console.warn('Speech error:', e);
-        resolve();
-      };
+        var url = getTTSUrl(chunks[index], langCode);
+        var audio = new Audio();
+        currentAudio = audio;
 
-      window.speechSynthesis.speak(utterance);
+        audio.onended = function() {
+          index++;
+          setTimeout(playNext, 300);
+        };
+
+        audio.onerror = function(e) {
+          console.warn('Audio chunk error, trying next:', e);
+          index++;
+          setTimeout(playNext, 300);
+        };
+
+        audio.src = url;
+        audio.play().catch(function(err) {
+          console.warn('Play failed:', err);
+          index++;
+          setTimeout(playNext, 300);
+        });
+      }
+
+      playNext();
     });
   }
 
-  // Preload voices (some browsers load them async)
-  if (window.speechSynthesis) {
-    window.speechSynthesis.getVoices();
-    window.speechSynthesis.onvoiceschanged = () => {
-      window.speechSynthesis.getVoices();
-    };
-  }
-
-  // Chrome bug fix: keep speech alive for long utterances
-  function startChromeFix() {
-    return setInterval(() => {
-      if (window.speechSynthesis.speaking) {
-        window.speechSynthesis.pause();
-        window.speechSynthesis.resume();
-      }
-    }, 10000);
+  function stopAudio() {
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+      currentAudio = null;
+    }
   }
 
   // ===== CONTINUOUS LOOP =====
   async function playLoopCycle() {
     if (!loopRunning) return;
 
-    const enText = document.getElementById('loopEN').value;
-    const esText = document.getElementById('loopES').value;
+    var enText = document.getElementById('loopEN').value;
+    var esText = document.getElementById('loopES').value;
 
     setStatus('🔊 Playing English loop message...', true);
     await speak(enText, 'en-US');
 
     if (!loopRunning) return;
 
-    await new Promise(r => { loopTimeout = setTimeout(r, 1500); });
+    await new Promise(function(r) { loopTimeout = setTimeout(r, 1500); });
     if (!loopRunning) return;
 
     setStatus('🔊 Playing Spanish loop message...', true);
@@ -300,16 +344,16 @@
     if (!loopRunning) return;
 
     setStatus('⏳ Loop pause — repeating soon...', true);
-    await new Promise(r => { loopTimeout = setTimeout(r, 3000); });
+    await new Promise(function(r) { loopTimeout = setTimeout(r, 3000); });
 
     if (loopRunning) playLoopCycle();
   }
 
   function toggleLoop() {
-    const btn = document.getElementById('loopBtn');
+    var btn = document.getElementById('loopBtn');
     if (loopRunning) {
       loopRunning = false;
-      window.speechSynthesis.cancel();
+      stopAudio();
       clearTimeout(loopTimeout);
       btn.textContent = '▶ Play Loop';
       btn.classList.remove('btn-stop');
@@ -325,33 +369,35 @@
   }
 
   // ===== TIMED SEQUENTIAL MESSAGES =====
-  function addMessage(text = '', delay = 30, lang = 'en-US') {
+  function addMessage(text, delay, lang) {
+    text = text || '';
+    delay = delay || 30;
+    lang = lang || 'en-US';
     msgCount++;
-    const id = msgCount;
-    const container = document.getElementById('timedContainer');
+    var id = msgCount;
+    var container = document.getElementById('timedContainer');
 
-    const div = document.createElement('div');
+    var div = document.createElement('div');
     div.className = 'timed-msg';
     div.id = 'msg-' + id;
-    div.innerHTML = `
-      <button class="remove-btn" onclick="removeMessage(${id})">✕</button>
-      <div class="delay-row">
-        <label>Message ${id}</label>
-        <label>Delay:</label>
-        <input type="number" class="delay-input" id="delay-${id}" value="${delay}" min="0"> sec
-        <label>Lang:</label>
-        <select id="lang-${id}">
-          <option value="en-US" ${lang === 'en-US' ? 'selected' : ''}>🇺🇸 EN</option>
-          <option value="es-ES" ${lang === 'es-ES' ? 'selected' : ''}>🇲🇽 ES</option>
-        </select>
-      </div>
-      <textarea id="text-${id}" placeholder="Enter announcement text...">${text}</textarea>
-    `;
+    div.innerHTML =
+      '<button class="remove-btn" onclick="removeMessage(' + id + ')">✕</button>' +
+      '<div class="delay-row">' +
+        '<label>Message ' + id + '</label>' +
+        '<label>Delay:</label>' +
+        '<input type="number" class="delay-input" id="delay-' + id + '" value="' + delay + '" min="0"> sec' +
+        '<label>Lang:</label>' +
+        '<select id="lang-' + id + '">' +
+          '<option value="en-US"' + (lang === 'en-US' ? ' selected' : '') + '>🇺🇸 EN</option>' +
+          '<option value="es-ES"' + (lang === 'es-ES' ? ' selected' : '') + '>🇲🇽 ES</option>' +
+        '</select>' +
+      '</div>' +
+      '<textarea id="text-' + id + '" placeholder="Enter announcement text...">' + text + '</textarea>';
     container.appendChild(div);
   }
 
   function removeMessage(id) {
-    const el = document.getElementById('msg-' + id);
+    var el = document.getElementById('msg-' + id);
     if (el) el.remove();
   }
 
@@ -360,33 +406,34 @@
     sequenceRunning = true;
     setStatus('⏱ Sequence started...', true);
 
-    const chromeFix = startChromeFix();
-    const msgs = document.getElementById('timedContainer').children;
+    var msgs = document.getElementById('timedContainer').children;
 
-    for (let i = 0; i < msgs.length; i++) {
+    for (var i = 0; i < msgs.length; i++) {
       if (!sequenceRunning) break;
 
-      const msgDiv = msgs[i];
-      const id = msgDiv.id.replace('msg-', '');
-      const delay = parseInt(document.getElementById('delay-' + id)?.value || 0) * 1000;
-      const lang = document.getElementById('lang-' + id)?.value || 'en-US';
-      const text = document.getElementById('text-' + id)?.value || '';
+      var msgDiv = msgs[i];
+      var id = msgDiv.id.replace('msg-', '');
+      var delayEl = document.getElementById('delay-' + id);
+      var langEl = document.getElementById('lang-' + id);
+      var textEl = document.getElementById('text-' + id);
+      var delay = parseInt(delayEl ? delayEl.value : 0) * 1000;
+      var lang = langEl ? langEl.value : 'en-US';
+      var text = textEl ? textEl.value : '';
 
       if (delay > 0) {
-        setStatus(`⏳ Waiting ${delay/1000}s before message ${i+1}...`, true);
-        await new Promise(r => {
-          const t = setTimeout(r, delay);
+        setStatus('⏳ Waiting ' + (delay/1000) + 's before message ' + (i+1) + '...', true);
+        await new Promise(function(r) {
+          var t = setTimeout(r, delay);
           sequenceTimeouts.push(t);
         });
       }
 
       if (!sequenceRunning) break;
 
-      setStatus(`🔊 Playing message ${i+1} of ${msgs.length}...`, true);
+      setStatus('🔊 Playing message ' + (i+1) + ' of ' + msgs.length + '...', true);
       await speak(text, lang);
     }
 
-    clearInterval(chromeFix);
     sequenceRunning = false;
     setStatus('✅ Sequence complete', false);
   }
@@ -394,12 +441,12 @@
   function stopAll() {
     loopRunning = false;
     sequenceRunning = false;
-    window.speechSynthesis.cancel();
+    stopAudio();
     clearTimeout(loopTimeout);
-    sequenceTimeouts.forEach(t => clearTimeout(t));
+    sequenceTimeouts.forEach(function(t) { clearTimeout(t); });
     sequenceTimeouts = [];
 
-    const btn = document.getElementById('loopBtn');
+    var btn = document.getElementById('loopBtn');
     btn.textContent = '▶ Play Loop';
     btn.classList.remove('btn-stop');
     btn.classList.add('btn-play');
@@ -409,38 +456,41 @@
 
   // ===== SAVE / LOAD CONFIG =====
   function saveConfig() {
-    const config = {
+    var config = {
       loopEN: document.getElementById('loopEN').value,
       loopES: document.getElementById('loopES').value,
       messages: []
     };
 
-    const msgs = document.getElementById('timedContainer').children;
-    for (let i = 0; i < msgs.length; i++) {
-      const id = msgs[i].id.replace('msg-', '');
+    var msgs = document.getElementById('timedContainer').children;
+    for (var i = 0; i < msgs.length; i++) {
+      var id = msgs[i].id.replace('msg-', '');
+      var textEl = document.getElementById('text-' + id);
+      var delayEl = document.getElementById('delay-' + id);
+      var langEl = document.getElementById('lang-' + id);
       config.messages.push({
-        text: document.getElementById('text-' + id)?.value || '',
-        delay: parseInt(document.getElementById('delay-' + id)?.value || 30),
-        lang: document.getElementById('lang-' + id)?.value || 'en-US'
+        text: textEl ? textEl.value : '',
+        delay: parseInt(delayEl ? delayEl.value : 30),
+        lang: langEl ? langEl.value : 'en-US'
       });
     }
 
     localStorage.setItem('dil7config', JSON.stringify(config));
 
-    const toast = document.getElementById('toast');
+    var toast = document.getElementById('toast');
     toast.style.display = 'block';
-    setTimeout(() => { toast.style.display = 'none'; }, 2000);
+    setTimeout(function() { toast.style.display = 'none'; }, 2000);
   }
 
   function loadConfig() {
-    const saved = localStorage.getItem('dil7config');
+    var saved = localStorage.getItem('dil7config');
     if (saved) {
       try {
-        const config = JSON.parse(saved);
+        var config = JSON.parse(saved);
         if (config.loopEN) document.getElementById('loopEN').value = config.loopEN;
         if (config.loopES) document.getElementById('loopES').value = config.loopES;
         if (config.messages && config.messages.length > 0) {
-          config.messages.forEach(m => addMessage(m.text, m.delay, m.lang));
+          config.messages.forEach(function(m) { addMessage(m.text, m.delay, m.lang); });
           return;
         }
       } catch(e) { console.warn('Config load error:', e); }
